@@ -16,10 +16,17 @@ public struct ToastItem {
     }
 }
 
-private class Toast: UIView {
+public protocol ToastDisplayable: UIView {
+    func configure(_ item: ToastItem)
+    func setBackgroundColor(_ color: UIColor)
+    func setTextColor(_ color: UIColor)
+    func setFont(_ font: UIFont)
+}
+
+open class Toast: UIView, ToastDisplayable {
     private let container: UIView = {
         let view = UIView()
-        view.backgroundColor = .black.withAlphaComponent(0.9)
+        view.backgroundColor = TSToast.DefaultStyle.backgroundColor
         return view
     }()
     
@@ -32,34 +39,56 @@ private class Toast: UIView {
         return stackView
     }()
     
-    private let label: UILabel = {
-        let label = UILabel()
-        label.textColor = .white
-        label.numberOfLines = 0
-        return label
-    }()
+    public var label: UILabel
     
-    init() {
+    public init() {
+        let label = {
+            let label = UILabel()
+            label.font = TSToast.DefaultStyle.font
+            label.textColor = TSToast.DefaultStyle.textColor
+            label.numberOfLines = 0
+            return label
+        }()
+        self.label = label
         super.init(frame: .zero)
         setupViews()
         setupConstraints()
     }
     
-    required init?(coder: NSCoder) {
+    public init(label: UILabel) {
+        self.label = label
+        super.init(frame: .zero)
+        setupViews()
+        setupConstraints()
+    }
+    
+    required public init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
-    override func layoutSubviews() {
+    public override func layoutSubviews() {
         super.layoutSubviews()
         container.layer.cornerRadius = bounds.height / 2
     }
     
-    func configure(_ item: ToastItem) {
+    public func configure(_ item: ToastItem) {
         if let text = item.text, !text.isEmpty {
             label.text = text
         } else {
             label.isHidden = true
         }
+    }
+    
+    public func setBackgroundColor(_ color: UIColor) {
+        container.backgroundColor = color
+    }
+    
+    public func setTextColor(_ color: UIColor) {
+        label.textColor = color
+    }
+    
+    public func setFont(_ font: UIFont) {
+        label.font = font
     }
 }
 
@@ -91,19 +120,36 @@ private extension Toast {
 }
 
 public class TSToast {
-    static let shared = TSToast()
-    
     private init() {}
     
-    private var window: UIWindow? {
+    private static var window: UIWindow? {
         return UIApplication.shared.windows.first { $0.isKeyWindow }
     }
     
-    public static func show(_ item: ToastItem) {
-        guard let window = shared.window else { return }
+    public static var toastClass: ToastDisplayable.Type = Toast.self
+    
+    public struct DefaultStyle {
+        public static var backgroundColor: UIColor = .black.withAlphaComponent(0.9)
+        public static var textColor: UIColor = .white
+        public static var font: UIFont = UIFont.systemFont(ofSize: 16)
+        public static var labelType: UILabel.Type = UILabel.self
+    }
+    
+    public static func show(_ item: ToastItem, backgroundColor: UIColor? = nil, textColor: UIColor? = nil, font: UIFont? = nil) {
+        guard let window = window else { return }
         
-        let toast = Toast()
+        let toast = toastClass.init()
         toast.configure(item)
+        
+        if let backgroundColor = backgroundColor {
+            toast.setBackgroundColor(backgroundColor)
+        }
+        if let textColor = textColor {
+            toast.setTextColor(textColor)
+        }
+        if let font = font {
+            toast.setFont(font)
+        }
         window.addSubview(toast)
         
         toast.translatesAutoresizingMaskIntoConstraints = false
@@ -119,8 +165,8 @@ public class TSToast {
 }
 
 private extension TSToast {
-    static func toastSpringAnimation(with toast: Toast) {
-        guard let window = shared.window else { return }
+    static func toastSpringAnimation(with toast: ToastDisplayable) {
+        guard let window = window else { return }
         
         let marginBottom = 10.0
         let toastDefaultHeight = 46.0
@@ -159,10 +205,56 @@ private extension TSToast {
 }
 
 #if DEBUG
+private class CustomLabel: UILabel {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupDefaultStyle()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupDefaultStyle()
+    }
+    
+    private func setupDefaultStyle() {
+        self.font = UIFont.boldSystemFont(ofSize: 20)
+        self.textColor = .white
+        self.numberOfLines = 0
+    }
+}
+
+private class CustomToast: Toast {
+    override init() {
+        let customLabel = CustomLabel()
+        super.init(label: customLabel)
+        setBackgroundColor(.red.withAlphaComponent(0.9))
+    }
+    
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
 private class TSToast_PreviewController: UIViewController {
-    let button: UIButton = {
+    let stackView: UIStackView = {
+        let stackView = UIStackView()
+        stackView.axis = .vertical
+        stackView.spacing = 8
+        return stackView
+    }()
+    let defaultButton: UIButton = {
         let button = UIButton(type: .system)
-        button.setTitle("토스트", for: .normal)
+        button.setTitle("기본 토스트", for: .normal)
+        return button
+    }()
+    let customClassButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("커스텀 클래스 토스트", for: .normal)
+        return button
+    }()
+    let customButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("커스텀 토스트", for: .normal)
         return button
     }()
     
@@ -175,24 +267,48 @@ private class TSToast_PreviewController: UIViewController {
     }
     
     func setupViews() {
-        view.addSubview(button)
+        view.addSubview(stackView)
+        stackView.addArrangedSubview(defaultButton)
+        stackView.addArrangedSubview(customClassButton)
+        stackView.addArrangedSubview(customButton)
     }
     
     func setupConstraints() {
-        button.translatesAutoresizingMaskIntoConstraints = false
+        stackView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            button.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            button.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            stackView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stackView.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
     }
     
     func configureUI() {
-        button.addTarget(self, action: #selector(clickToast(_:)), for: .touchUpInside)
+        defaultButton.addTarget(self, action: #selector(clickDefaultToast(_:)), for: .touchUpInside)
+        customClassButton.addTarget(self, action: #selector(clickClassCustomToast(_:)), for: .touchUpInside)
+        customButton.addTarget(self, action: #selector(clickCustomToast(_:)), for: .touchUpInside)
     }
     
-    @objc func clickToast(_ sender: UIButton) {
-        let item = ToastItem(text: "토스트 메시지입니다.")
+    @objc func clickDefaultToast(_ sender: UIButton) {
+        // 기본 스타일 설정
+        TSToast.toastClass = Toast.self
+        
+        TSToast.DefaultStyle.backgroundColor = .blue.withAlphaComponent(0.8)
+        TSToast.DefaultStyle.textColor = .yellow
+        TSToast.DefaultStyle.font = UIFont.boldSystemFont(ofSize: 18)
+        
+        let item = ToastItem(text: "기본 토스트 메시지입니다.")
         TSToast.show(item)
+    }
+    
+    @objc func clickClassCustomToast(_ sender: UIButton) {
+        TSToast.toastClass = CustomToast.self
+        
+        let item = ToastItem(text: "커스텀 클래스 토스트 메시지입니다.")
+        TSToast.show(item)
+    }
+    
+    @objc func clickCustomToast(_ sender: UIButton) {
+        let item = ToastItem(text: "커스텀 토스트 메시지입니다.")
+        TSToast.show(item, backgroundColor: .purple.withAlphaComponent(0.9), textColor: .white, font: UIFont.italicSystemFont(ofSize: 16))
     }
 }
 
