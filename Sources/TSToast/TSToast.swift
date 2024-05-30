@@ -199,7 +199,9 @@ private extension TSToast {
                     y: marginBottom + toastDefaultHeight + safeAreaInsetBottom
                 )
             },
-            completion: nil
+            completion: { _ in
+                toast.removeFromSuperview()
+            }
         )
     }
 }
