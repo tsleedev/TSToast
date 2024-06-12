@@ -9,7 +9,7 @@
 import UIKit
 
 public struct ToastItem {
-    let text: String?
+    public let text: String?
     
     public init(text: String?) {
         self.text = text
@@ -132,7 +132,6 @@ public class TSToast {
         public static var backgroundColor: UIColor = .black.withAlphaComponent(0.9)
         public static var textColor: UIColor = .white
         public static var font: UIFont = UIFont.systemFont(ofSize: 16)
-        public static var labelType: UILabel.Type = UILabel.self
     }
     
     public static func show(_ item: ToastItem, backgroundColor: UIColor? = nil, textColor: UIColor? = nil, font: UIFont? = nil) {
@@ -237,6 +236,52 @@ private class CustomToast: Toast {
     }
 }
 
+private class CustomProtocolToast: UIView, ToastDisplayable {
+    let label: UILabel = {
+        let label = UILabel()
+        label.textColor = .white
+        label.backgroundColor = .black.withAlphaComponent(0.9)
+        return label
+    }()
+    
+    init() {
+        super.init(frame: .zero)
+        setupViews()
+        setupConstraints()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    func configure(_ item: ToastItem) {
+        if let text = item.text, !text.isEmpty {
+            label.text = text
+        } else {
+            label.isHidden = true
+        }
+    }
+    
+    func setBackgroundColor(_ color: UIColor) {}
+    func setTextColor(_ color: UIColor) {}
+    func setFont(_ font: UIFont) {}
+    
+    // MARK: - Setup
+    func setupViews() {
+        addSubview(label)
+    }
+    
+    func setupConstraints() {
+        label.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: self.topAnchor),
+            label.bottomAnchor.constraint(equalTo: self.bottomAnchor),
+            label.leadingAnchor.constraint(equalTo: self.leadingAnchor),
+            label.trailingAnchor.constraint(equalTo: self.trailingAnchor)
+        ])
+    }
+}
+
 private class TSToast_PreviewController: UIViewController {
     let stackView: UIStackView = {
         let stackView = UIStackView()
@@ -252,6 +297,11 @@ private class TSToast_PreviewController: UIViewController {
     let customClassButton: UIButton = {
         let button = UIButton(type: .system)
         button.setTitle("커스텀 클래스 토스트", for: .normal)
+        return button
+    }()
+    let customProtocolButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("커스텀 프로토콜 토스트", for: .normal)
         return button
     }()
     let customButton: UIButton = {
@@ -272,6 +322,7 @@ private class TSToast_PreviewController: UIViewController {
         view.addSubview(stackView)
         stackView.addArrangedSubview(defaultButton)
         stackView.addArrangedSubview(customClassButton)
+        stackView.addArrangedSubview(customProtocolButton)
         stackView.addArrangedSubview(customButton)
     }
     
@@ -286,6 +337,7 @@ private class TSToast_PreviewController: UIViewController {
     func configureUI() {
         defaultButton.addTarget(self, action: #selector(clickDefaultToast(_:)), for: .touchUpInside)
         customClassButton.addTarget(self, action: #selector(clickClassCustomToast(_:)), for: .touchUpInside)
+        customProtocolButton.addTarget(self, action: #selector(clickProtocolCustomToast(_:)), for: .touchUpInside)
         customButton.addTarget(self, action: #selector(clickCustomToast(_:)), for: .touchUpInside)
     }
     
@@ -305,6 +357,13 @@ private class TSToast_PreviewController: UIViewController {
         TSToast.toastClass = CustomToast.self
         
         let item = ToastItem(text: "커스텀 클래스 토스트 메시지입니다.")
+        TSToast.show(item)
+    }
+    
+    @objc func clickProtocolCustomToast(_ sender: UIButton) {
+        TSToast.toastClass = CustomProtocolToast.self
+        
+        let item = ToastItem(text: "커스텀 프로토콜 토스트 메시지입니다.")
         TSToast.show(item)
     }
     
